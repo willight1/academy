@@ -1,0 +1,57 @@
+# 의존성
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 환경 변수
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 로그
+logs
+*.log
+
+# 런타임 데이터
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# 빌드 파일
+dist/
+build/
+*.tsbuildinfo
+
+# 업로드 파일
+uploads/
+temp/
+
+# IDE 설정
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS 생성 파일
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 테스트 커버리지
+coverage/
+.nyc_output/
+
+# ESLint 캐시
+.eslintcache
+
+# TypeScript 캐시
+*.tsbuildinfo
