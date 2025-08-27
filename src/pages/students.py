@@ -4,6 +4,7 @@ from datetime import datetime, date
 from src.services.database import get_db_session
 from src.services.student_service import StudentService
 from src.services.guardian_service import GuardianService
+from src.services.course_service import CourseService
 from src.models.database import StudentStatus, Gender, RelationshipType
 from src.utils.auth import require_permission
 import tempfile
@@ -21,13 +22,14 @@ def render():
     try:
         student_service = StudentService(db)
         guardian_service = GuardianService(db)
+        course_service = CourseService(db)
         
         
         with tab1:
-            render_student_list(student_service, guardian_service)
+            render_student_list(student_service, guardian_service, course_service)
         
         with tab2:
-            render_student_registration(student_service, guardian_service)
+            render_student_registration(student_service, guardian_service, course_service)
         
         with tab3:
             render_excel_management(student_service, guardian_service)
@@ -40,12 +42,12 @@ def render():
     finally:
         db.close()
 
-def render_student_list(student_service, guardian_service):
+def render_student_list(student_service, guardian_service, course_service):
     """학생 목록 - 이름 클릭시 학생+보호자 정보 표시"""
     st.subheader("📋 학생 목록")
     
     # 검색 및 필터
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     
     with col1:
         search_term = st.text_input("🔍 검색", placeholder="이름, 학교, 연락처, 학원등록번호")
@@ -54,6 +56,12 @@ def render_student_list(student_service, guardian_service):
         status_filter = st.selectbox("상태", ["전체"] + [status.value for status in StudentStatus])
     
     with col3:
+        # 수강과목 필터
+        courses = course_service.get_all_courses()
+        course_options = ["전체"] + [f"{c.name} ({c.subject.name if c.subject else ''})" for c in courses]
+        selected_course = st.selectbox("수강과목", course_options)
+    
+    with col4:
         st.write("")  # 간격
         if st.button("🔄 새로고침"):
             st.rerun()
@@ -63,6 +71,17 @@ def render_student_list(student_service, guardian_service):
         search=search_term,
         status=None if status_filter == "전체" else status_filter
     )
+    
+    # 수강과목 필터링
+    if selected_course != "전체":
+        # 선택된 수강과목에 등록된 학생들만 필터링
+        selected_course_name = selected_course.split(" (")[0]  # 과목명만 추출
+        course = next((c for c in courses if c.name == selected_course_name), None)
+        
+        if course:
+            course_enrollments = course_service.get_course_enrollments(course.id)
+            enrolled_student_ids = [e.student_id for e in course_enrollments]
+            students = [s for s in students if s.id in enrolled_student_ids]
     
     if students:
         # 학생 정보를 데이터프레임으로 변환
@@ -78,6 +97,13 @@ def render_student_list(student_service, guardian_service):
             primary_guardian = next((g for g in guardians if g.is_primary), guardians[0] if guardians else None)
             guardian_phone = primary_guardian.phone if primary_guardian else ""
             
+            # 수강과목 정보 가져오기
+            enrollments = course_service.get_student_enrollments(student.id)
+            course_names = [e.course.name for e in enrollments if e.course][:2]  # 최대 2개만 표시
+            course_display = ", ".join(course_names)
+            if len(enrollments) > 2:
+                course_display += f" 외 {len(enrollments)-2}개"
+            
             student_data.append({
                 "선택": False,
                 "학원번호": student.academy_id,
@@ -85,6 +111,7 @@ def render_student_list(student_service, guardian_service):
                 "성별": student.gender.value if student.gender else "",
                 "학교": student.school_name or "",
                 "학년": f"{student.grade}학년" if student.grade else "",
+                "수강과목": course_display or "없음",
                 "학생연락처": student.phone or "",
                 "보호자": guardian_names,
                 "보호자연락처": guardian_phone,
@@ -284,7 +311,7 @@ def render_student_family_contact(student_family_data):
             if primary_guardian.email and st.button(f"📧 {primary_guardian.name}에게 이메일", key=f"email_{student.id}"):
                 st.info(f"이메일: {primary_guardian.email}")
 
-def render_student_registration(student_service, guardian_service):
+def render_student_registration(student_service, guardian_service, course_service):
     """학생 등록 - 보호자 정보도 함께 입력"""
     st.subheader("➕ 새 학생 등록")
     
@@ -358,6 +385,28 @@ def render_student_registration(student_service, guardian_service):
                     guardian2_occupation = st.text_input("직업", key="g2_job", placeholder="직업")
                     guardian2_workplace = st.text_input("직장", key="g2_work", placeholder="직장명")
                     guardian2_work_phone = st.text_input("직장전화", key="g2_work_phone", placeholder="02-0000-0000")
+        
+        # 수강과목 선택
+        st.write("### 📚 수강과목 선택")
+        available_courses = course_service.get_all_courses(status="진행중")
+        
+        if available_courses:
+            selected_courses = []
+            st.write("수강할 과목을 선택하세요 (선택사항):")
+            
+            for course in available_courses:
+                enrollment_count = course_service.get_course_enrollment_count(course.id)
+                available_slots = course.capacity - enrollment_count
+                
+                if available_slots > 0:
+                    course_info = f"{course.name} ({course.subject.name if course.subject else ''}) - 여유: {available_slots}자리"
+                    if st.checkbox(course_info, key=f"course_{course.id}"):
+                        selected_courses.append(course.id)
+                else:
+                    st.write(f"❌ {course.name} ({course.subject.name if course.subject else ''}) - 정원초과")
+        else:
+            st.info("현재 등록 가능한 수강과목이 없습니다.")
+            selected_courses = []
         
         # 특이사항
         notes = st.text_area("특이사항", placeholder="특이사항이나 참고사항을 입력하세요")
@@ -439,7 +488,30 @@ def render_student_registration(student_service, guardian_service):
                     guardian2 = guardian_service.create_guardian(guardian2_data)
                     guardian_service.link_guardian_to_student(guardian2.id, student.id)
                 
+                # 수강과목 등록
+                enrolled_courses = []
+                course_errors = []
+                
+                for course_id in selected_courses:
+                    try:
+                        course_service.enroll_student(student.id, course_id)
+                        course = course_service.get_course_by_id(course_id)
+                        enrolled_courses.append(course.name if course else f"과목 ID {course_id}")
+                    except Exception as e:
+                        course = course_service.get_course_by_id(course_id)
+                        course_name = course.name if course else f"과목 ID {course_id}"
+                        course_errors.append(f"{course_name}: {str(e)}")
+                
                 st.success(f"✅ 학생이 등록되었습니다. (학원등록번호: {student.academy_id})")
+                
+                if enrolled_courses:
+                    st.success(f"📚 수강과목 등록 완료: {', '.join(enrolled_courses)}")
+                
+                if course_errors:
+                    st.warning("⚠️ 일부 수강과목 등록 실패:")
+                    for error in course_errors:
+                        st.write(f"• {error}")
+                
                 st.balloons()  # 축하 애니메이션
                 st.info("📋 **등록된 학생을 확인하려면 '학생 목록' 탭을 클릭하세요!**")
                 

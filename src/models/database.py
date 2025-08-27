@@ -34,6 +34,16 @@ class RelationshipType(enum.Enum):
     GUARDIAN = "보호자"
     OTHER = "기타"
 
+class CourseStatus(enum.Enum):
+    ACTIVE = "진행중"
+    COMPLETED = "완료"
+    CANCELLED = "취소"
+
+class EnrollmentStatus(enum.Enum):
+    ACTIVE = "수강중"
+    COMPLETED = "수강완료"
+    DROPPED = "중도포기"
+
 
 # 사용자 모델
 class User(Base):
@@ -99,6 +109,7 @@ class Student(Base):
     
     # 관계
     guardians = relationship("Guardian", secondary="student_guardians", back_populates="students")
+    enrollments = relationship("Enrollment", back_populates="student")
 
 # 보호자 모델
 class Guardian(Base):
@@ -150,4 +161,74 @@ class StudentGuardian(Base):
     student_id = Column(Integer, ForeignKey('students.id'), primary_key=True)
     guardian_id = Column(Integer, ForeignKey('guardians.id'), primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+# 과목 모델
+class Subject(Base):
+    __tablename__ = 'subjects'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    courses = relationship("Course", back_populates="subject")
+
+# 수강과목 모델
+class Course(Base):
+    __tablename__ = 'courses'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    subject_id = Column(Integer, ForeignKey('subjects.id'), nullable=False)
+    teacher_id = Column(Integer, ForeignKey('users.id'))
+    
+    # 수업 정보
+    level = Column(String(50))  # 초급, 중급, 고급
+    capacity = Column(Integer, default=20)
+    duration_minutes = Column(Integer, default=120)
+    
+    # 요일 및 시간
+    schedule_info = Column(Text)  # 월수금 19:00-21:00 형태
+    
+    # 교재 정보
+    textbook = Column(String(200))
+    curriculum = Column(Text)
+    
+    start_date = Column(Date)
+    end_date = Column(Date)
+    status = Column(Enum(CourseStatus), default=CourseStatus.ACTIVE)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 관계
+    subject = relationship("Subject", back_populates="courses")
+    teacher = relationship("User")
+    enrollments = relationship("Enrollment", back_populates="course")
+
+# 수강 등록 모델
+class Enrollment(Base):
+    __tablename__ = 'enrollments'
+    
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
+    course_id = Column(Integer, ForeignKey('courses.id'), nullable=False)
+    
+    enrollment_date = Column(Date, default=datetime.utcnow().date())
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date)
+    
+    status = Column(Enum(EnrollmentStatus), default=EnrollmentStatus.ACTIVE)
+    
+    # 개별 목표
+    learning_goals = Column(Text)
+    notes = Column(Text)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 관계
+    student = relationship("Student", back_populates="enrollments")
+    course = relationship("Course", back_populates="enrollments")
 

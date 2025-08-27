@@ -55,7 +55,7 @@ def get_db_session():
 
 def create_initial_data():
     """초기 데이터 생성"""
-    from src.models.database import User, UserRole
+    from src.models.database import User, UserRole, Subject
     from src.utils.security import hash_password
     
     db = SessionLocal()
@@ -73,9 +73,25 @@ def create_initial_data():
                 phone="010-0000-0000"
             )
             db.add(admin_user)
-            db.commit()
             print("✅ 관리자 계정 생성 완료")
         
+        # 기본 과목 확인 및 생성
+        subjects_data = [
+            {"name": "수학", "description": "수학 과목"},
+            {"name": "영어", "description": "영어 과목"},
+            {"name": "국어", "description": "국어 과목"},
+            {"name": "과학", "description": "과학 과목"},
+            {"name": "사회", "description": "사회 과목"},
+            {"name": "코딩", "description": "프로그래밍 과목"}
+        ]
+        
+        for subject_data in subjects_data:
+            existing_subject = db.query(Subject).filter(Subject.name == subject_data["name"]).first()
+            if not existing_subject:
+                subject = Subject(**subject_data)
+                db.add(subject)
+        
+        db.commit()
         print("✅ 초기 데이터 생성 완료")
         
     except Exception as e:

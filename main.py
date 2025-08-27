@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from src.services.database import init_database
-from src.pages import home, students
+from src.pages import home, students, courses
 from src.utils.auth import check_authentication, logout
 from src.utils.config import load_config
 
@@ -83,7 +83,8 @@ def main():
         # 메뉴 선택
         menu_options = {
             "🏠 대시보드": "dashboard",
-            "👨‍🎓 학생 관리": "students"
+            "👨‍🎓 학생 관리": "students",
+            "📚 수강과목 관리": "courses"
         }
         
         selected_menu = st.selectbox(
@@ -104,6 +105,8 @@ def main():
         home.render()
     elif page_key == "students":
         students.render()
+    elif page_key == "courses":
+        courses.render()
 
 if __name__ == "__main__":
     main()
