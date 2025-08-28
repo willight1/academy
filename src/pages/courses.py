@@ -50,7 +50,7 @@ def render_subject_management(course_service):
     
     with col1:
         # 과목 목록
-        subjects = course_service.get_all_subjects()
+        subjects = course_service.get_subjects()
         
         if subjects:
             subject_data = []
@@ -105,7 +105,7 @@ def render_course_management(course_service):
         search_term = st.text_input("🔍 검색", placeholder="수강과목명, 과목명, 레벨")
     
     with col2:
-        subjects = course_service.get_all_subjects()
+        subjects = course_service.get_subjects()
         subject_options = ["전체"] + [s.name for s in subjects]
         selected_subject = st.selectbox("과목 필터", subject_options)
     
@@ -121,17 +121,17 @@ def render_course_management(course_service):
     
     status = None if selected_status == "전체" else selected_status
     
-    courses = course_service.get_all_courses(
+    courses = course_service.get_courses(
         subject_id=subject_id,
         status=status,
-        search=search_term if search_term else None
+        search_term=search_term if search_term else None
     )
     
     # 수강과목 목록 표시
     if courses:
         course_data = []
         for course in courses:
-            enrollment_count = course_service.get_course_enrollment_count(course.id)
+            enrollment_count = course_service.count_enrollments(course.id)
             
             course_data.append({
                 "선택": False,
@@ -182,7 +182,7 @@ def render_course_management(course_service):
         col1, col2 = st.columns(2)
         
         with col1:
-            subjects = course_service.get_all_subjects()
+            subjects = course_service.get_subjects()
             if not subjects:
                 st.warning("먼저 과목을 등록해주세요.")
                 st.form_submit_button("등록", disabled=True)
@@ -255,7 +255,7 @@ def render_course_detail(course, course_service):
     
     with col2:
         st.write("**진행 정보**")
-        enrollment_count = course_service.get_course_enrollment_count(course.id)
+        enrollment_count = course_service.count_enrollments(course.id)
         st.write(f"• 현재 수강생: {enrollment_count}명")
         st.write(f"• 여유 정원: {course.capacity - enrollment_count}명")
         st.write(f"• 상태: {course.status.value}")
@@ -281,7 +281,7 @@ def render_enrollment_management(course_service, student_service):
     st.subheader("👥 수강생 배정 관리")
     
     # 수강과목 선택
-    courses = course_service.get_all_courses(status="진행중")
+    courses = course_service.get_courses(status="진행중")
     if not courses:
         st.warning("진행중인 수강과목이 없습니다.")
         return
@@ -295,7 +295,7 @@ def render_enrollment_management(course_service, student_service):
     
     if selected_course_idx is not None:
         course_id = course_options[selected_course_idx][0]
-        course = course_service.get_course_by_id(course_id)
+        course = course_service.get_course(course_id)
         
         col1, col2 = st.columns(2)
         
@@ -311,7 +311,7 @@ def render_enrollment_management(course_service, student_service):
                     with col_action:
                         if st.button("❌", key=f"drop_{enrollment.id}"):
                             try:
-                                course_service.drop_enrollment(enrollment.id)
+                                course_service.unenroll(enrollment.id)
                                 st.success(f"{enrollment.student.name} 학생이 수강 취소되었습니다.")
                                 st.rerun()
                             except Exception as e:
@@ -321,7 +321,7 @@ def render_enrollment_management(course_service, student_service):
         
         with col2:
             st.write("**수강 가능한 학생**")
-            available_students = course_service.get_students_not_in_course(course_id)
+            available_students = course_service.get_available_students(course_id)
             
             if available_students:
                 for student in available_students:
@@ -331,7 +331,7 @@ def render_enrollment_management(course_service, student_service):
                     with col_action:
                         if st.button("➕", key=f"enroll_{student.id}_{course_id}"):
                             try:
-                                course_service.enroll_student(student.id, course_id)
+                                course_service.enroll(student.id, course_id)
                                 st.success(f"{student.name} 학생이 수강 등록되었습니다.")
                                 st.rerun()
                             except Exception as e:

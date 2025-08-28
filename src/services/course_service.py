@@ -12,34 +12,34 @@ class CourseService:
         self.db = db
 
     # ========== 과목 관리 ==========
-    def create_subject(self, subject_data: Dict[str, Any]) -> Subject:
+    def create_subject(self, data: Dict[str, Any]) -> Subject:
         """새 과목 생성"""
-        subject = Subject(**subject_data)
+        subject = Subject(**data)
         self.db.add(subject)
         self.db.commit()
         self.db.refresh(subject)
         return subject
 
-    def get_all_subjects(self, active_only: bool = True) -> List[Subject]:
+    def get_subjects(self, active_only: bool = True) -> List[Subject]:
         """모든 과목 조회"""
         query = self.db.query(Subject)
         if active_only:
             query = query.filter(Subject.is_active == True)
         return query.order_by(Subject.name).all()
 
-    def get_subject_by_id(self, subject_id: int) -> Optional[Subject]:
+    def get_subject(self, subject_id: int) -> Optional[Subject]:
         """ID로 과목 조회"""
         return self.db.query(Subject).filter(Subject.id == subject_id).first()
 
-    def update_subject(self, subject_id: int, subject_data: Dict[str, Any]) -> Optional[Subject]:
+    def update_subject(self, subject_id: int, data: Dict[str, Any]) -> Optional[Subject]:
         """과목 정보 수정"""
-        subject = self.get_subject_by_id(subject_id)
+        subject = self.get_subject(subject_id)
         if not subject:
             return None
             
-        for key, value in subject_data.items():
-            if hasattr(subject, key):
-                setattr(subject, key, value)
+        for field_name, value in data.items():
+            if hasattr(subject, field_name):
+                setattr(subject, field_name, value)
         
         self.db.commit()
         self.db.refresh(subject)
@@ -47,7 +47,7 @@ class CourseService:
 
     def delete_subject(self, subject_id: int) -> bool:
         """과목 삭제 (soft delete)"""
-        subject = self.get_subject_by_id(subject_id)
+        subject = self.get_subject(subject_id)
         if not subject:
             return False
             
@@ -56,18 +56,18 @@ class CourseService:
         return True
 
     # ========== 수강과목 관리 ==========
-    def create_course(self, course_data: Dict[str, Any]) -> Course:
+    def create_course(self, course_info: Dict[str, Any]) -> Course:
         """새 수강과목 생성"""
-        course = Course(**course_data)
-        self.db.add(course)
+        new_course = Course(**course_info)
+        self.db.add(new_course)
         self.db.commit()
-        self.db.refresh(course)
-        return course
+        self.db.refresh(new_course)
+        return new_course
 
-    def get_all_courses(self, 
-                       subject_id: Optional[int] = None,
-                       status: Optional[str] = None,
-                       search: Optional[str] = None) -> List[Course]:
+    def get_courses(self, 
+                        subject_id: Optional[int] = None,
+                        status: Optional[str] = None,
+                        search_term: Optional[str] = None) -> List[Course]:
         """모든 수강과목 조회"""
         query = self.db.query(Course).join(Subject)
         
@@ -77,30 +77,30 @@ class CourseService:
         if status:
             query = query.filter(Course.status == CourseStatus(status))
         
-        if search:
+        if search_term:
             query = query.filter(
                 or_(
-                    Course.name.contains(search),
-                    Subject.name.contains(search),
-                    Course.level.contains(search)
+                    Course.name.contains(search_term),
+                    Subject.name.contains(search_term),
+                    Course.level.contains(search_term)
                 )
             )
         
         return query.order_by(Course.name).all()
 
-    def get_course_by_id(self, course_id: int) -> Optional[Course]:
+    def get_course(self, course_id: int) -> Optional[Course]:
         """ID로 수강과목 조회"""
         return self.db.query(Course).filter(Course.id == course_id).first()
 
-    def update_course(self, course_id: int, course_data: Dict[str, Any]) -> Optional[Course]:
+    def update_course(self, course_id: int, update_data: Dict[str, Any]) -> Optional[Course]:
         """수강과목 정보 수정"""
-        course = self.get_course_by_id(course_id)
+        course = self.get_course(course_id)
         if not course:
             return None
             
-        for key, value in course_data.items():
-            if hasattr(course, key):
-                setattr(course, key, value)
+        for field_name, value in update_data.items():
+            if hasattr(course, field_name):
+                setattr(course, field_name, value)
         
         self.db.commit()
         self.db.refresh(course)
@@ -108,30 +108,30 @@ class CourseService:
 
     def delete_course(self, course_id: int) -> bool:
         """수강과목 삭제"""
-        course = self.get_course_by_id(course_id)
+        course = self.get_course(course_id)
         if not course:
             return False
         
         # 수강중인 학생이 있는지 확인
-        active_enrollments = self.db.query(Enrollment).filter(
+        active_student_count = self.db.query(Enrollment).filter(
             and_(
                 Enrollment.course_id == course_id,
                 Enrollment.status == EnrollmentStatus.ACTIVE
             )
         ).count()
         
-        if active_enrollments > 0:
-            raise ValueError(f"수강중인 학생이 {active_enrollments}명 있어서 삭제할 수 없습니다.")
+        if active_student_count > 0:
+            raise ValueError(f"수강중인 학생이 {active_student_count}명 있어서 삭제할 수 없습니다.")
         
         self.db.delete(course)
         self.db.commit()
         return True
 
     # ========== 수강신청 관리 ==========
-    def enroll_student(self, student_id: int, course_id: int, enrollment_data: Optional[Dict[str, Any]] = None) -> Enrollment:
+    def enroll(self, student_id: int, course_id: int, enrollment_info: Optional[Dict[str, Any]] = None) -> Enrollment:
         """학생 수강신청"""
         # 이미 수강중인지 확인
-        existing_enrollment = self.db.query(Enrollment).filter(
+        current_enrollment = self.db.query(Enrollment).filter(
             and_(
                 Enrollment.student_id == student_id,
                 Enrollment.course_id == course_id,
@@ -139,37 +139,37 @@ class CourseService:
             )
         ).first()
         
-        if existing_enrollment:
+        if current_enrollment:
             raise ValueError("이미 이 수강과목에 등록되어 있습니다.")
         
         # 수강과목 정원 확인
-        course = self.get_course_by_id(course_id)
+        course = self.get_course(course_id)
         if not course:
             raise ValueError("존재하지 않는 수강과목입니다.")
         
-        current_enrollments = self.get_course_enrollment_count(course_id)
-        if current_enrollments >= course.capacity:
+        current_student_count = self.count_enrollments(course_id)
+        if current_student_count >= course.capacity:
             raise ValueError("수강과목 정원이 초과되었습니다.")
         
         # 수강신청 생성
-        enrollment_dict = {
+        enrollment_data = {
             'student_id': student_id,
             'course_id': course_id,
             'enrollment_date': date.today(),
-            'start_date': enrollment_data.get('start_date', date.today()) if enrollment_data else date.today(),
+            'start_date': enrollment_info.get('start_date', date.today()) if enrollment_info else date.today(),
             'status': EnrollmentStatus.ACTIVE
         }
         
-        if enrollment_data:
-            enrollment_dict.update(enrollment_data)
+        if enrollment_info:
+            enrollment_data.update(enrollment_info)
         
-        enrollment = Enrollment(**enrollment_dict)
-        self.db.add(enrollment)
+        new_enrollment = Enrollment(**enrollment_data)
+        self.db.add(new_enrollment)
         self.db.commit()
-        self.db.refresh(enrollment)
-        return enrollment
+        self.db.refresh(new_enrollment)
+        return new_enrollment
 
-    def drop_enrollment(self, enrollment_id: int) -> bool:
+    def unenroll(self, enrollment_id: int) -> bool:
         """수강 포기"""
         enrollment = self.db.query(Enrollment).filter(Enrollment.id == enrollment_id).first()
         if not enrollment:
@@ -198,7 +198,7 @@ class CourseService:
         
         return query.order_by(Enrollment.created_at).all()
 
-    def get_course_enrollment_count(self, course_id: int) -> int:
+    def count_enrollments(self, course_id: int) -> int:
         """수강과목의 현재 수강생 수"""
         return self.db.query(Enrollment).filter(
             and_(
@@ -209,7 +209,7 @@ class CourseService:
 
     def get_course_with_students(self, course_id: int) -> Optional[Dict[str, Any]]:
         """수강과목과 수강생 정보 함께 조회"""
-        course = self.get_course_by_id(course_id)
+        course = self.get_course(course_id)
         if not course:
             return None
         
@@ -261,7 +261,7 @@ class CourseService:
         ]
 
     # ========== 검색 및 필터링 ==========
-    def search_available_courses_for_student(self, student_id: int) -> List[Course]:
+    def get_available_courses(self, student_id: int) -> List[Course]:
         """학생이 수강 가능한 수강과목 검색 (이미 수강중이지 않은 과목)"""
         enrolled_course_ids = self.db.query(Enrollment.course_id).filter(
             and_(
@@ -279,7 +279,7 @@ class CourseService:
         
         return available_courses
 
-    def get_students_not_in_course(self, course_id: int) -> List[Student]:
+    def get_available_students(self, course_id: int) -> List[Student]:
         """특정 수강과목에 등록되지 않은 학생 목록"""
         enrolled_student_ids = self.db.query(Enrollment.student_id).filter(
             and_(

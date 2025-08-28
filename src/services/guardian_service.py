@@ -9,25 +9,25 @@ class GuardianService:
     def __init__(self, db: Session):
         self.db = db
     
-    def create_guardian(self, guardian_data: dict) -> Guardian:
+    def create(self, guardian_info: dict) -> Guardian:
         """보호자 생성"""
         try:
-            guardian = Guardian(**guardian_data)
-            self.db.add(guardian)
+            new_guardian = Guardian(**guardian_info)
+            self.db.add(new_guardian)
             self.db.commit()
-            self.db.refresh(guardian)
+            self.db.refresh(new_guardian)
             
-            return guardian
+            return new_guardian
             
         except Exception as e:
             self.db.rollback()
             raise Exception(f"보호자 생성 실패: {str(e)}")
     
-    def get_guardian_by_id(self, guardian_id: int) -> Optional[Guardian]:
+    def get_by_id(self, guardian_id: int) -> Optional[Guardian]:
         """ID로 보호자 조회"""
         return self.db.query(Guardian).filter(Guardian.id == guardian_id).first()
     
-    def get_guardian_by_phone(self, phone: str) -> Optional[Guardian]:
+    def get_by_phone(self, phone: str) -> Optional[Guardian]:
         """전화번호로 보호자 조회"""
         # 숫자만 추출하여 검색
         clean_phone = ''.join(filter(str.isdigit, phone))
@@ -35,7 +35,7 @@ class GuardianService:
             Guardian.phone.like(f"%{clean_phone}%")
         ).first()
     
-    def get_all_guardians(self, search: str = None, limit: int = None) -> List[Guardian]:
+    def get_all(self, search: str = None, limit: int = None) -> List[Guardian]:
         """모든 보호자 조회"""
         query = self.db.query(Guardian)
         
@@ -60,10 +60,10 @@ class GuardianService:
         
         return query.all()
     
-    def update_guardian(self, guardian_id: int, update_data: dict) -> Guardian:
+    def update(self, guardian_id: int, update_data: dict) -> Guardian:
         """보호자 정보 수정"""
         try:
-            guardian = self.get_guardian_by_id(guardian_id)
+            guardian = self.get_by_id(guardian_id)
             if not guardian:
                 raise Exception("보호자를 찾을 수 없습니다.")
             
@@ -82,10 +82,10 @@ class GuardianService:
             self.db.rollback()
             raise Exception(f"보호자 정보 수정 실패: {str(e)}")
     
-    def delete_guardian(self, guardian_id: int) -> bool:
+    def delete(self, guardian_id: int) -> bool:
         """보호자 삭제"""
         try:
-            guardian = self.get_guardian_by_id(guardian_id)
+            guardian = self.get_by_id(guardian_id)
             if not guardian:
                 raise Exception("보호자를 찾을 수 없습니다.")
             
@@ -106,19 +106,19 @@ class GuardianService:
             self.db.rollback()
             raise Exception(f"보호자 삭제 실패: {str(e)}")
     
-    def get_guardians_by_student(self, student_id: int) -> List[Guardian]:
+    def get_by_student(self, student_id: int) -> List[Guardian]:
         """학생의 보호자 목록 조회"""
         return self.db.query(Guardian).join(StudentGuardian).filter(
             StudentGuardian.student_id == student_id
         ).all()
     
-    def get_students_by_guardian(self, guardian_id: int) -> List[Student]:
+    def get_students(self, guardian_id: int) -> List[Student]:
         """보호자의 자녀 목록 조회"""
         return self.db.query(Student).join(StudentGuardian).filter(
             StudentGuardian.guardian_id == guardian_id
         ).all()
     
-    def link_guardian_to_student(self, guardian_id: int, student_id: int) -> bool:
+    def link_student(self, guardian_id: int, student_id: int) -> bool:
         """보호자와 학생 연결"""
         try:
             # 이미 연결되어 있는지 확인
@@ -145,7 +145,7 @@ class GuardianService:
             self.db.rollback()
             raise Exception(f"보호자-학생 연결 실패: {str(e)}")
     
-    def unlink_guardian_from_student(self, guardian_id: int, student_id: int) -> bool:
+    def unlink_student(self, guardian_id: int, student_id: int) -> bool:
         """보호자와 학생 연결 해제"""
         try:
             student_guardian = self.db.query(StudentGuardian).filter(
@@ -164,7 +164,7 @@ class GuardianService:
             self.db.rollback()
             raise Exception(f"보호자-학생 연결 해제 실패: {str(e)}")
     
-    def find_duplicate_guardians(self) -> List[Dict]:
+    def find_duplicates(self) -> List[Dict]:
         """중복 보호자 찾기 (전화번호 기준)"""
         # 전화번호별 보호자 수 집계
         phone_counts = self.db.query(
@@ -186,7 +186,7 @@ class GuardianService:
         
         return duplicates
     
-    def merge_guardians(self, primary_guardian_id: int, duplicate_guardian_ids: List[int]) -> bool:
+    def merge(self, primary_guardian_id: int, duplicate_guardian_ids: List[int]) -> bool:
         """중복 보호자 병합"""
         try:
             primary_guardian = self.get_guardian_by_id(primary_guardian_id)
@@ -232,7 +232,7 @@ class GuardianService:
             self.db.rollback()
             raise Exception(f"보호자 병합 실패: {str(e)}")
     
-    def get_guardian_statistics(self) -> dict:
+    def get_statistics(self) -> dict:
         """보호자 통계"""
         total_guardians = self.db.query(Guardian).count()
         
@@ -271,7 +271,7 @@ class GuardianService:
             'children_distribution': children_distribution
         }
     
-    def import_guardians_from_excel(self, file_path: str) -> dict:
+    def import_from_excel(self, file_path: str) -> dict:
         """엑셀 파일에서 보호자 데이터 가져오기"""
         try:
             df = pd.read_excel(file_path)
@@ -314,7 +314,7 @@ class GuardianService:
                     if not guardian_data['phone']:
                         raise ValueError("연락처는 필수입니다.")
                     
-                    self.create_guardian(guardian_data)
+                    self.create(guardian_data)
                     success_count += 1
                     
                 except Exception as e:
@@ -330,11 +330,11 @@ class GuardianService:
         except Exception as e:
             raise Exception(f"엑셀 파일 처리 실패: {str(e)}")
     
-    def export_guardians_to_excel(self, file_path: str, guardians: List[Guardian] = None) -> str:
+    def export_to_excel(self, file_path: str, guardians: List[Guardian] = None) -> str:
         """보호자 데이터를 엑셀로 내보내기"""
         try:
             if guardians is None:
-                guardians = self.get_all_guardians()
+                guardians = self.get_all()
             
             data = []
             for guardian in guardians:

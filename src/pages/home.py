@@ -43,8 +43,8 @@ def render():
 def render_key_metrics(db, student_service, guardian_service):
     """주요 지표 카드"""
     # 통계 데이터 가져오기
-    students = student_service.get_all_students()
-    guardians = guardian_service.get_all_guardians()
+    students = student_service.get_all()
+    guardians = guardian_service.get_all()
     
     total_students = len(students)
     active_students = len([s for s in students if s.status == StudentStatus.ACTIVE])

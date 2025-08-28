@@ -57,7 +57,7 @@ def render_student_list(student_service, guardian_service, course_service):
     
     with col3:
         # 수강과목 필터
-        courses = course_service.get_all_courses()
+        courses = course_service.get_courses()
         course_options = ["전체"] + [f"{c.name} ({c.subject.name if c.subject else ''})" for c in courses]
         selected_course = st.selectbox("수강과목", course_options)
     
@@ -67,7 +67,7 @@ def render_student_list(student_service, guardian_service, course_service):
             st.rerun()
     
     # 학생 목록 조회
-    students = student_service.get_all_students(
+    students = student_service.get_all(
         search=search_term,
         status=None if status_filter == "전체" else status_filter
     )
@@ -388,14 +388,14 @@ def render_student_registration(student_service, guardian_service, course_servic
         
         # 수강과목 선택
         st.write("### 📚 수강과목 선택")
-        available_courses = course_service.get_all_courses(status="진행중")
+        available_courses = course_service.get_courses(status="진행중")
         
         if available_courses:
             selected_courses = []
             st.write("수강할 과목을 선택하세요 (선택사항):")
             
             for course in available_courses:
-                enrollment_count = course_service.get_course_enrollment_count(course.id)
+                enrollment_count = course_service.count_enrollments(course.id)
                 available_slots = course.capacity - enrollment_count
                 
                 if available_slots > 0:
@@ -441,7 +441,7 @@ def render_student_registration(student_service, guardian_service, course_servic
                 }
                 
                 # 학생 등록
-                student = student_service.create_student(student_data)
+                student = student_service.create(student_data)
                 
                 # 주보호자 등록
                 guardian1_data = {
@@ -494,11 +494,11 @@ def render_student_registration(student_service, guardian_service, course_servic
                 
                 for course_id in selected_courses:
                     try:
-                        course_service.enroll_student(student.id, course_id)
-                        course = course_service.get_course_by_id(course_id)
+                        course_service.enroll(student.id, course_id)
+                        course = course_service.get_course(course_id)
                         enrolled_courses.append(course.name if course else f"과목 ID {course_id}")
                     except Exception as e:
-                        course = course_service.get_course_by_id(course_id)
+                        course = course_service.get_course(course_id)
                         course_name = course.name if course else f"과목 ID {course_id}"
                         course_errors.append(f"{course_name}: {str(e)}")
                 
@@ -672,7 +672,7 @@ def render_student_statistics(student_service, guardian_service):
     
     try:
         # 기본 통계
-        students = student_service.get_all_students()
+        students = student_service.get_all()
         guardians = guardian_service.get_all_guardians()
         
         col1, col2, col3, col4 = st.columns(4)

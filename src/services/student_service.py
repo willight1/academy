@@ -10,42 +10,42 @@ class StudentService:
     def __init__(self, db: Session):
         self.db = db
     
-    def create_student(self, student_data: dict) -> Student:
+    def create(self, student_info: dict) -> Student:
         """학생 생성"""
         try:
             # 학원 등록번호 자동 생성
-            student_data['academy_id'] = self.generate_unique_academy_id()
+            student_info['academy_id'] = self.generate_unique_academy_id()
             
             # 생년월일 문자열을 date 객체로 변환
-            if isinstance(student_data.get('birth_date'), str):
-                student_data['birth_date'] = datetime.strptime(student_data['birth_date'], '%Y-%m-%d').date()
+            if isinstance(student_info.get('birth_date'), str):
+                student_info['birth_date'] = datetime.strptime(student_info['birth_date'], '%Y-%m-%d').date()
             
             # 입학일 처리
-            if isinstance(student_data.get('enrollment_date'), str):
-                student_data['enrollment_date'] = datetime.strptime(student_data['enrollment_date'], '%Y-%m-%d').date()
-            elif not student_data.get('enrollment_date'):
-                student_data['enrollment_date'] = date.today()
+            if isinstance(student_info.get('enrollment_date'), str):
+                student_info['enrollment_date'] = datetime.strptime(student_info['enrollment_date'], '%Y-%m-%d').date()
+            elif not student_info.get('enrollment_date'):
+                student_info['enrollment_date'] = date.today()
             
-            student = Student(**student_data)
-            self.db.add(student)
+            new_student = Student(**student_info)
+            self.db.add(new_student)
             self.db.commit()
-            self.db.refresh(student)
+            self.db.refresh(new_student)
             
-            return student
+            return new_student
             
         except Exception as e:
             self.db.rollback()
             raise Exception(f"학생 생성 실패: {str(e)}")
     
-    def get_student_by_id(self, student_id: int) -> Optional[Student]:
+    def get_by_id(self, student_id: int) -> Optional[Student]:
         """ID로 학생 조회"""
         return self.db.query(Student).filter(Student.id == student_id).first()
     
-    def get_student_by_academy_id(self, academy_id: str) -> Optional[Student]:
+    def get_by_academy_id(self, academy_id: str) -> Optional[Student]:
         """학원 등록번호로 학생 조회"""
         return self.db.query(Student).filter(Student.academy_id == academy_id).first()
     
-    def get_all_students(self, status: str = None, search: str = None, limit: int = None) -> List[Student]:
+    def get_all(self, status: str = None, search: str = None, limit: int = None) -> List[Student]:
         """모든 학생 조회"""
         query = self.db.query(Student)
         
@@ -65,13 +65,13 @@ class StudentService:
         
         # 검색 필터
         if search:
-            search_term = f"%{search}%"
+            search_pattern = f"%{search}%"
             query = query.filter(
                 or_(
-                    Student.name.ilike(search_term),
-                    Student.academy_id.ilike(search_term),
-                    Student.school_name.ilike(search_term),
-                    Student.phone.ilike(search_term)
+                    Student.name.ilike(search_pattern),
+                    Student.academy_id.ilike(search_pattern),
+                    Student.school_name.ilike(search_pattern),
+                    Student.phone.ilike(search_pattern)
                 )
             )
         
@@ -84,24 +84,24 @@ class StudentService:
         
         return query.all()
     
-    def update_student(self, student_id: int, update_data: dict) -> Student:
+    def update(self, student_id: int, data: dict) -> Student:
         """학생 정보 수정"""
         try:
-            student = self.get_student_by_id(student_id)
+            student = self.get_by_id(student_id)
             if not student:
                 raise Exception("학생을 찾을 수 없습니다.")
             
             # 날짜 필드 처리
-            if 'birth_date' in update_data and isinstance(update_data['birth_date'], str):
-                update_data['birth_date'] = datetime.strptime(update_data['birth_date'], '%Y-%m-%d').date()
+            if 'birth_date' in data and isinstance(data['birth_date'], str):
+                data['birth_date'] = datetime.strptime(data['birth_date'], '%Y-%m-%d').date()
             
-            if 'enrollment_date' in update_data and isinstance(update_data['enrollment_date'], str):
-                update_data['enrollment_date'] = datetime.strptime(update_data['enrollment_date'], '%Y-%m-%d').date()
+            if 'enrollment_date' in data and isinstance(data['enrollment_date'], str):
+                data['enrollment_date'] = datetime.strptime(data['enrollment_date'], '%Y-%m-%d').date()
             
             # 업데이트
-            for key, value in update_data.items():
-                if hasattr(student, key):
-                    setattr(student, key, value)
+            for field_name, value in data.items():
+                if hasattr(student, field_name):
+                    setattr(student, field_name, value)
             
             student.updated_at = datetime.utcnow()
             self.db.commit()
@@ -113,10 +113,10 @@ class StudentService:
             self.db.rollback()
             raise Exception(f"학생 정보 수정 실패: {str(e)}")
     
-    def delete_student(self, student_id: int) -> bool:
+    def delete(self, student_id: int) -> bool:
         """학생 삭제 (비활성화)"""
         try:
-            student = self.get_student_by_id(student_id)
+            student = self.get_by_id(student_id)
             if not student:
                 raise Exception("학생을 찾을 수 없습니다.")
             
@@ -130,26 +130,26 @@ class StudentService:
             self.db.rollback()
             raise Exception(f"학생 삭제 실패: {str(e)}")
     
-    def add_guardian_to_student(self, student_id: int, guardian_id: int) -> bool:
+    def link_guardian(self, student_id: int, guardian_id: int) -> bool:
         """학생에 보호자 추가"""
         try:
             # 기존 관계 확인
-            existing = self.db.query(StudentGuardian).filter(
+            existing_link = self.db.query(StudentGuardian).filter(
                 and_(
                     StudentGuardian.student_id == student_id,
                     StudentGuardian.guardian_id == guardian_id
                 )
             ).first()
             
-            if existing:
+            if existing_link:
                 return True  # 이미 연결됨
             
             # 새 관계 추가
-            relationship = StudentGuardian(
+            new_relationship = StudentGuardian(
                 student_id=student_id,
                 guardian_id=guardian_id
             )
-            self.db.add(relationship)
+            self.db.add(new_relationship)
             self.db.commit()
             
             return True
@@ -158,18 +158,18 @@ class StudentService:
             self.db.rollback()
             raise Exception(f"보호자 연결 실패: {str(e)}")
     
-    def remove_guardian_from_student(self, student_id: int, guardian_id: int) -> bool:
+    def unlink_guardian(self, student_id: int, guardian_id: int) -> bool:
         """학생에서 보호자 제거"""
         try:
-            relationship = self.db.query(StudentGuardian).filter(
+            existing_link = self.db.query(StudentGuardian).filter(
                 and_(
                     StudentGuardian.student_id == student_id,
                     StudentGuardian.guardian_id == guardian_id
                 )
             ).first()
             
-            if relationship:
-                self.db.delete(relationship)
+            if existing_link:
+                self.db.delete(existing_link)
                 self.db.commit()
             
             return True
@@ -178,13 +178,13 @@ class StudentService:
             self.db.rollback()
             raise Exception(f"보호자 연결 해제 실패: {str(e)}")
     
-    def get_students_by_guardian(self, guardian_id: int) -> List[Student]:
+    def get_by_guardian(self, guardian_id: int) -> List[Student]:
         """보호자의 자녀 목록 조회"""
         return self.db.query(Student).join(StudentGuardian).filter(
             StudentGuardian.guardian_id == guardian_id
         ).all()
     
-    def get_student_statistics(self) -> dict:
+    def get_statistics(self) -> dict:
         """학생 통계"""
         total_students = self.db.query(Student).count()
         active_students = self.db.query(Student).filter(Student.status == StudentStatus.ACTIVE).count()
@@ -226,7 +226,7 @@ class StudentService:
             if not existing:
                 return academy_id
     
-    def import_students_from_excel(self, file_path: str) -> dict:
+    def import_from_excel(self, file_path: str) -> dict:
         """엑셀 파일에서 학생 데이터 가져오기"""
         try:
             df = pd.read_excel(file_path)
@@ -253,7 +253,7 @@ class StudentService:
                     if not student_data['name']:
                         raise ValueError("이름은 필수입니다.")
                     
-                    self.create_student(student_data)
+                    self.create(student_data)
                     success_count += 1
                     
                 except Exception as e:
@@ -269,11 +269,11 @@ class StudentService:
         except Exception as e:
             raise Exception(f"엑셀 파일 처리 실패: {str(e)}")
     
-    def export_students_to_excel(self, file_path: str, students: List[Student] = None) -> str:
+    def export_to_excel(self, file_path: str, students: List[Student] = None) -> str:
         """학생 데이터를 엑셀로 내보내기"""
         try:
             if students is None:
-                students = self.get_all_students()
+                students = self.get_all()
             
             data = []
             for student in students:
